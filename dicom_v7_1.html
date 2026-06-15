@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>수지골 DICOM 통합 측정기 v2.5</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #111827; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+.topbar { background: #0f172a; border-bottom: 1px solid #1e3a5f; height: 44px; flex-shrink: 0; display: flex; align-items: center; padding: 0 14px; gap: 0; }
+.topbar-title { font-size: 13px; font-weight: 700; color: #94a3b8; margin-right: 18px; white-space: nowrap; }
+.tab-btn { height: 44px; padding: 0 20px; border: none; background: transparent; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.15s; white-space: nowrap; }
+.tab-btn:hover { color: #cbd5e1; }
+.tab-btn.active-fx { color: #e94560; border-bottom-color: #e94560; }
+.tab-btn.active-nm { color: #4fc3f7; border-bottom-color: #4fc3f7; }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.ps-badge { background: #0a1e35; border: 1px solid #1e3a5f; border-radius: 5px; padding: 2px 8px; font-size: 10px; color: #64748b; white-space: nowrap; }
+
+.tab-panel { display: none; flex: 1; min-height: 0; }
+.tab-panel.show { display: flex; }
+
+.sidebar { width: 284px; min-width: 284px; background: #0f172a; border-right: 1px solid #1e3a5f; display: flex; flex-direction: column; overflow: hidden; }
+.sidebar-scroll { flex: 1; overflow-y: auto; padding: 9px; display: flex; flex-direction: column; gap: 7px; }
+.sec { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+.sec-fx { color: #e94560; } .sec-nm { color: #4fc3f7; }
+
+.meta-block { background: #0d1c35; border-radius: 7px; padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+.meta-row { display: flex; align-items: center; gap: 6px; }
+.meta-row label { font-size: 10px; color: #94a3b8; width: 50px; flex-shrink: 0; }
+.meta-row input[type=text],.meta-row input[type=date] { flex: 1; background: #0a1628; border: 1px solid #1e3a5f; border-radius: 4px; color: #eee; font-size: 11px; padding: 3px 7px; outline: none; }
+.meta-row input:focus { border-color: #4fc3f7; }
+
+/* info box for NM distDiam used in FX */
+.nm-diam-box { background: #0a1e2a; border: 1px solid #0e4060; border-radius: 6px; padding: 6px 8px; font-size: 10px; display: flex; justify-content: space-between; align-items: center; }
+.nm-diam-box span { color: #64748b; }
+.nm-diam-val { color: #fbbf24; font-weight: 700; }
+
+.ccard { border-radius: 7px; padding: 8px 9px; background: #0d1c35; border-left: 3px solid #333; transition: box-shadow 0.15s; }
+.ccard.active { box-shadow: 0 0 0 1.5px #e94560; border-left-color: #e94560 !important; }
+.scard { border-radius: 7px; padding: 8px 9px; background: #0d1c35; border-left: 3px solid #333; transition: box-shadow 0.15s, opacity 0.15s; }
+.scard.done { border-left-color: #22c55e !important; opacity: 0.9; }
+.scard.waiting { opacity: 0.42; }
+.clabel { font-size: 11px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 7px; font-size: 9px; font-weight: 700; }
+.plist { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+.pitem { background: #0a1628; border-radius: 4px; padding: 3px 7px; font-size: 10px; display: flex; align-items: center; gap: 5px; }
+.pdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.cinfo { font-size: 10px; line-height: 1.7; }
+.empty { color: #475569; font-style: italic; font-size: 10px; }
+
+.dmatrix { background: #0a1628; border-radius: 7px; padding: 8px; border: 1px solid #1e3a5f; }
+.drow { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border-bottom: 1px solid #1e2f50; font-size: 10px; }
+.drow:last-child { border-bottom: none; }
+.dl { color: #64748b; } .dv { color: #38bdf8; font-weight: 700; }
+
+/* checkbox row */
+.chk-row { display: flex; align-items: center; gap: 7px; background: #0d1c35; border-radius: 6px; padding: 6px 8px; border: 1px solid #2a3f60; }
+.chk-row input[type=checkbox] { width: 14px; height: 14px; accent-color: #e94560; cursor: pointer; flex-shrink: 0; }
+.chk-row label { font-size: 10px; color: #fda4af; cursor: pointer; font-weight: 600; }
+
+.sep { height: 1px; background: #1e3a5f; flex-shrink: 0; }
+
+.btn { padding: 6px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; width: 100%; margin-bottom: 3px; }
+.btn-green { background: #14532d; color: #86efac; } .btn-green:hover { background: #166534; }
+.btn-sec { background: #1e3a5f; color: #cbd5e1; } .btn-sec:hover { background: #2a4f80; color: #fff; }
+.btn-warn { background: #3d1818; color: #f87171; } .btn-warn:hover { background: #5a2020; }
+
+.canvas-wrap { flex: 1; position: relative; overflow: hidden; background: #050810; display: flex; align-items: center; justify-content: center; }
+canvas { cursor: crosshair; display: block; }
+
+.dropzone { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: #050810; }
+.dropzone.hidden { display: none; }
+.drop-icon { font-size: 52px; }
+.drop-text { font-size: 14px; color: #94a3b8; }
+.drop-sub { font-size: 11px; color: #475569; }
+.drop-btn-fx { padding: 9px 22px; background: #e94560; color: #fff; border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.drop-btn-fx:hover { background: #c7304a; }
+.drop-btn-nm { padding: 9px 22px; background: #4fc3f7; color: #0a1628; border: none; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.drop-btn-nm:hover { background: #29b6f6; }
+.drop-area-overlay { position: absolute; inset: 0; border: 3px dashed #ffffff22; border-radius: 8px; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+.drop-area-overlay.show { opacity: 1; }
+
+.hint { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: rgba(14,24,50,0.92); border: 1px solid #1e3a5f; border-radius: 18px; padding: 4px 14px; font-size: 11px; color: #cbd5e1; pointer-events: none; white-space: nowrap; }
+.zctrls { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 5px; }
+.zbtn { width: 30px; height: 30px; background: rgba(14,24,50,0.9); border: 1px solid #1e3a5f; border-radius: 6px; color: #94a3b8; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.zbtn:hover { background: #1e3a5f; color: #fff; }
+
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; align-items: center; justify-content: center; }
+.modal-bg.show { display: flex; }
+.modal { background: #0f172a; border: 1px solid #1e3a5f; border-radius: 12px; width: 1020px; max-width: 97vw; max-height: 85vh; display: flex; flex-direction: column; padding: 18px; }
+.modal h2 { font-size: 14px; margin-bottom: 12px; }
+.modal-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.modal-actions button { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
+.btn-csv { background: #14532d; color: #86efac; } .btn-csv:hover { background: #166534; }
+.btn-mcl { background: #3d1818; color: #f87171; margin-left: auto; } .btn-mcl:hover { background: #5a2020; }
+.tbl-wrap { overflow: auto; flex: 1; }
+table { width: 100%; border-collapse: collapse; font-size: 10px; white-space: nowrap; }
+th { background: #1e3a5f; color: #94a3b8; padding: 6px 8px; text-align: left; position: sticky; top: 0; }
+td { padding: 5px 8px; border-bottom: 1px solid #0f2040; color: #cbd5e1; }
+tr:hover td { background: #0d1f40; }
+.del-btn { background: #3d1818; color: #f87171; border: none; border-radius: 4px; padding: 2px 7px; cursor: pointer; font-size: 10px; }
+.del-btn:hover { background: #5a2020; }
+.no-data { text-align: center; color: #475569; padding: 30px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <span class="topbar-title">🦴 수지골 골절 DICOM 측정기 v6</span>
+  <div id="batchBar" style="display:none;align-items:center;gap:8px;background:#0a1e35;border:1px solid #1e3a5f;border-radius:6px;padding:3px 10px;margin-left:12px;">
+    <span style="font-size:10px;color:#94a3b8">📂</span>
+    <span id="batchCurrent" style="font-size:11px;font-weight:700;color:#38bdf8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">-</span>
+    <span id="batchIdx" style="font-size:10px;color:#64748b">0/0</span>
+    <div style="width:80px;height:4px;background:#1e3a5f;border-radius:2px;overflow:hidden">
+      <div id="batchProgress" style="height:100%;background:#4fc3f7;width:0%;transition:width 0.3s"></div>
+    </div>
+    <button id="batchSkipBtn" style="padding:2px 8px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#1e3a5f;color:#94a3b8">건너뜀</button>
+    <button id="batchStopBtn" style="padding:2px 8px;border:none;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;background:#3d1818;color:#f87171">중단</button>
+  </div>
+  <div class="topbar-right">
+    <div class="ps-badge" id="psBadgeFx">픽셀간격 -</div>
+    <label for="folderInput" style="display:inline-flex;align-items:center;gap:4px;padding:4px 11px;background:#0ea5e9;color:#fff;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;" title="폴더 일괄 import (.dcm)">📁 폴더 열기</label>
+    <input type="file" id="folderInput" accept=".dcm" multiple webkitdirectory style="display:none">
+    <button id="showResultsFxBtn" style="padding:4px 10px;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;background:#e94560;color:#fff">📋 결과</button>
+  </div>
+</div>
+
+<!-- ══ TAB A: 골절 측정 ══ -->
+<div class="tab-panel show" id="panelFx">
+  <div class="sidebar">
+    <div class="sidebar-scroll">
+      <div class="sec sec-fx">골절 측정 정보</div>
+      <div class="meta-block">
+        <div class="meta-row"><label>파일명</label><input type="text" id="fx_metaFile" readonly placeholder="파일 로드 후 자동입력" style="color:#64748b"></div>
+        <div class="meta-row"><label>측정일</label><input type="date" id="fx_metaDate"></div>
+        <div class="meta-row"><label>측정자</label><input type="text" id="fx_metaUser" placeholder="이름 입력"></div>
+        <div class="meta-row"><label>메모</label><input type="text" id="fx_metaMemo" placeholder="(선택)"></div>
+      </div>
+
+      <!-- PS 상태 패널 -->
+      <div id="fx_psPanel" style="background:#0a1e2a;border:1px solid #1e3a5f;border-radius:6px;padding:7px 9px;font-size:10px;display:flex;flex-direction:column;gap:3px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:#64748b;font-weight:700;font-size:9px;letter-spacing:1px;text-transform:uppercase">픽셀간격 상태</span>
+          <span id="fx_psStatusBadge" style="padding:1px 7px;border-radius:7px;font-size:9px;font-weight:700;background:#1e2a3a;color:#64748b">파일 없음</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#64748b">대표값</span><span id="fx_psValDisp" style="color:#38bdf8;font-weight:700">-</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#64748b">행/열 간격</span><span id="fx_psRowColDisp" style="color:#94a3b8">-</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#64748b">출처</span><span id="fx_psSrcDisp" style="color:#94a3b8">-</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="color:#64748b">등방성</span><span id="fx_psAnisoDisp" style="color:#94a3b8">-</span></div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="sec sec-fx">계측점 입력 (p1–p13)</div>
+
+      <div id="fx_card0" class="ccard" style="border-left-color:#38bdf8">
+        <div class="clabel" style="color:#38bdf8">① MP head <small style="color:#475569;font-weight:400;font-size:9px">(p1·p2·p3 → c1)</small>
+          <span class="badge" id="fx_badge0" style="background:#1e2a3a;color:#64748b">0/3</span></div>
+        <div class="plist" id="fx_plist0"><div class="empty">파일 로드 후 클릭</div></div>
+        <div id="fx_cinfo0"><div class="empty">3점 후 c1·r1</div></div>
+      </div>
+      <div id="fx_card1" class="ccard" style="border-left-color:#fb923c">
+        <div class="clabel" style="color:#fb923c">② DP <small style="color:#475569;font-weight:400;font-size:9px">(p4 volar·p5 dorsal·p6 distal·p7 tip)</small>
+          <span class="badge" id="fx_badge1" style="background:#1e2a3a;color:#64748b">0/4</span></div>
+        <div class="plist" id="fx_plist1"><div class="empty">c1 완성 후 입력</div></div>
+        <div id="fx_cinfo1"><div class="empty">p4·p5 후 c2·r2</div></div>
+      </div>
+      <div id="fx_card2" class="ccard" style="border-left-color:#4ade80">
+        <div class="clabel" style="color:#4ade80">③ FF <small style="color:#475569;font-weight:400;font-size:9px">(p8 volar·p9 dorsal·p10 tip)</small>
+          <span class="badge" id="fx_badge2" style="background:#1e2a3a;color:#64748b">0/3</span></div>
+        <div class="plist" id="fx_plist2"><div class="empty">DP 완성 후 입력</div></div>
+        <div id="fx_cinfo2"><div class="empty">p8·p9 후 c3</div></div>
+      </div>
+      <div id="fx_card3" class="ccard" style="border-left-color:#f472b6">
+        <div class="clabel" style="color:#f472b6">④ MP base <small style="color:#475569;font-weight:400;font-size:9px">(p11·p12·p13 → c4)</small>
+          <span class="badge" id="fx_badge3" style="background:#1e2a3a;color:#64748b">0/3</span></div>
+        <div class="plist" id="fx_plist3"><div class="empty">FF 완성 후 입력</div></div>
+        <div id="fx_cinfo3"><div class="empty">3점 후 c4·r3</div></div>
+      </div>
+
+
+      <div class="sep"></div>
+      <div class="chk-row">
+        <input type="checkbox" id="fx_swanNeck">
+        <label for="fx_swanNeck">Swan Neck Deformity 있음</label>
+      </div>
+      <div class="sep"></div>
+      <div class="sec sec-fx">결과 (mm / °)</div>
+      <div class="dmatrix">
+        <div class="drow"><span class="dl">r1 (MP head)</span><span class="dv" id="fx_r1">-</span></div>
+        <div class="drow"><span class="dl">r2 (DP·FF)</span><span class="dv" id="fx_r2">-</span></div>
+        <div class="drow"><span class="dl">r3 (MP base)</span><span class="dv" id="fx_r3">-</span></div>
+        <div class="drow" style="border-top:1px solid #2a3f60;margin-top:3px;padding-top:4px"><span class="dl" style="color:#fbbf24">length of MP</span><span class="dv" id="fx_mpLen" style="color:#fbbf24">-</span></div>
+        <div class="drow"><span class="dl" style="color:#fbbf24">length of DP</span><span class="dv" id="fx_dpLen" style="color:#fbbf24">-</span></div>
+        <div class="drow" style="background:rgba(244,114,182,0.08);border-radius:4px;padding:3px"><span class="dl" style="color:#f472b6;font-weight:700">mallet angle</span><span class="dv" id="fx_malletAngle" style="color:#f472b6;font-size:12px">-</span></div>
+        <div class="drow" style="border-top:1px solid #2a3f60;margin-top:3px;padding-top:4px"><span class="dl">DP-MP (c1c2)</span><span class="dv" id="fx_c1c2">-</span></div>
+        <div class="drow"><span class="dl">MP-FF (c1c3)</span><span class="dv" id="fx_c1c3">-</span></div>
+        <div class="drow"><span class="dl">DP-FF (c2c3)</span><span class="dv" id="fx_c2c3">-</span></div>
+        <div class="drow" style="border-top:1px solid #2a3f60;margin-top:3px;padding-top:4px"><span class="dl">arc p4p5 (a1)</span><span class="dv" id="fx_arc1">-</span></div>
+        <div class="drow"><span class="dl">arc p8p9 (a2)</span><span class="dv" id="fx_arc2">-</span></div>
+        <div class="drow"><span class="dl">arc 합</span><span class="dv" id="fx_arcSum">-</span></div>
+        <div class="drow" style="background:rgba(224,86,253,0.07);border-radius:4px;padding:3px"><span class="dl" style="color:#e056fd;font-weight:700">FF arc %</span><span class="dv" id="fx_arcPct" style="color:#e056fd;font-size:12px">-</span></div>
+        <div class="drow" style="border-top:1px solid #2a3f60;margin-top:3px;padding-top:4px"><span class="dl">line p4p5 (d1)</span><span class="dv" id="fx_line1">-</span></div>
+        <div class="drow"><span class="dl">line p8p9 (d2)</span><span class="dv" id="fx_line2">-</span></div>
+        <div class="drow"><span class="dl">line 합</span><span class="dv" id="fx_lineSum">-</span></div>
+        <div class="drow" style="background:rgba(99,179,255,0.07);border-radius:4px;padding:3px"><span class="dl" style="color:#93c5fd;font-weight:700">FF line %</span><span class="dv" id="fx_linePct" style="color:#93c5fd;font-size:12px">-</span></div>
+        <div class="drow" style="border-top:1px solid #2a3f60;margin-top:3px;padding-top:4px"><span class="dl" style="color:#38bdf8">fracture gap</span><span class="dv" id="fx_gap" style="color:#38bdf8">-</span></div>
+        <div class="drow"><span class="dl" style="color:#38bdf8">displacement</span><span class="dv" id="fx_disp" style="color:#38bdf8">-</span></div>
+        <div class="drow" style="border-top:1px solid #2a3f60;margin-top:3px;padding-top:4px"><span class="dl" style="color:#a78bfa">dorsal cortex FF</span><span class="dv" id="fx_dorsalFF" style="color:#a78bfa">-</span></div>
+        <div class="drow" style="background:rgba(167,139,250,0.08);border-radius:4px;padding:3px"><span class="dl" style="color:#a78bfa;font-weight:700">dorsal cortex ratio</span><span class="dv" id="fx_dorsalRatio" style="color:#a78bfa;font-size:12px">-</span></div>
+        <div class="drow" style="background:rgba(251,113,133,0.08);border-radius:4px;padding:4px 3px"><span class="dl" style="color:#fb7185;font-weight:700">fracture angle</span><span class="dv" id="fx_fxAngle" style="color:#fb7185;font-size:12px">-</span></div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="sec sec-fx">조작</div>
+      <button class="btn btn-green" id="fx_saveBtn">💾 이 측정 결과 저장</button>
+      <label for="fx_fileInput" class="btn btn-sec" id="fx_newFileBtn" style="cursor:pointer;display:block;text-align:center;">📂 새 파일 열기</label>
+      <button class="btn btn-sec" id="fx_undoBtn">↩ 마지막 점 삭제</button>
+      <button class="btn btn-warn" id="fx_clearBtn">🗑 측정 초기화</button>
+    </div>
+  </div>
+  <div class="canvas-wrap" id="fx_canvasWrap">
+    <canvas id="fx_canvas"></canvas>
+    <div class="dropzone" id="fx_dropzone">
+      <div class="drop-icon">🩻</div>
+      <div class="drop-text">골절 DICOM 파일을 드래그하거나</div>
+      <label for="fx_fileInput" class="drop-btn-fx" id="fx_openFileBtn" style="cursor:pointer;display:inline-block;padding:9px 22px;">📂 파일 선택</label>
+      <div class="drop-sub">지원 형식: .dcm</div>
+      <div class="drop-area-overlay" id="fx_dropOverlay"></div>
+    </div>
+    <div class="hint" id="fx_hint" style="display:none">파일을 로드하세요</div>
+    <div class="zctrls" id="fx_zctrls" style="display:none">
+      <div class="zbtn" id="fx_zIn">+</div><div class="zbtn" id="fx_zOut">−</div><div class="zbtn" id="fx_zReset">⊙</div>
+      <div id="fx_zoomPct" style="background:rgba(14,24,50,0.9);border:1px solid #1e3a5f;border-radius:6px;height:30px;padding:0 8px;color:#94a3b8;font-size:11px;font-weight:700;display:flex;align-items:center;white-space:nowrap;min-width:48px;justify-content:center;">100%</div>
+    </div>
+  </div>
+</div>
+      <div class="drop-text">정상 DICOM 파일을 드래그하거나</div>
+      <label for="nm_fileInput" class="drop-btn-nm" id="nm_openFileBtn" style="cursor:pointer;display:inline-block;padding:9px 22px;">📂 파일 선택</label>
+      <div class="drop-sub">지원 형식: .dcm</div>
+      <div class="drop-area-overlay" id="nm_dropOverlay"></div>
+    </div>
+    <div class="hint" id="nm_hint" style="display:none">파일을 로드하세요</div>
+    <div class="zctrls" id="nm_zctrls" style="display:none">
+      <div class="zbtn" id="nm_zIn">+</div><div class="zbtn" id="nm_zOut">−</div><div class="zbtn" id="nm_zReset">⊙</div>
+      <div id="nm_zoomPct" style="background:rgba(14,24,50,0.9);border:1px solid #1e3a5f;border-radius:6px;height:30px;padding:0 8px;color:#94a3b8;font-size:11px;font-weight:700;display:flex;align-items:center;white-space:nowrap;min-width:48px;justify-content:center;">100%</div>
+    </div>
+  </div>
+</div>
+
+
+<input type="file" id="fx_fileInput" accept=".dcm" style="position:fixed;top:-9999px;left:-9999px;opacity:0;width:1px;height:1px;">
+
+<!-- MODAL: 골절 -->
+<div class="modal-bg" id="fx_modalBg">
+  <div class="modal">
+    <h2 style="color:#e94560">📋 골절 측정 — 저장된 결과</h2>
+    <div class="modal-actions">
+      <button class="btn-csv" id="fx_csvBtn">⬇ CSV 내보내기</button>
+      <button style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;background:#3d1818;color:#f87171" id="fx_clearAllBtn">🗑 전체 삭제</button>
+      <button class="btn-mcl" id="fx_closeModalBtn">✕ 닫기</button>
+    </div>
+    <div class="tbl-wrap">
+      <table><thead><tr>
+        <th>#</th><th>측정일</th><th>측정자</th><th>파일명</th>
+        <th>픽셀간격</th><th>행</th><th>열</th><th>PS출처</th><th>PS상태</th><th>등방성</th>
+        <th>r1</th><th>r2</th><th>r3</th><th>MP길이</th><th>DP길이</th><th>mallet각</th>
+        <th>DP-MP</th><th>MP-FF</th><th>DP-FF</th>
+        <th>arc a1</th><th>arc a2</th><th>arc합</th><th>FF arc%</th>
+        <th>line d1</th><th>line d2</th><th>line합</th><th>FF line%</th>
+        <th>fracture각</th><th>gap</th><th>displacement</th><th>dorsal cortex FF</th><th>dorsal ratio%</th><th>Swan Neck</th><th>메모</th><th>삭제</th>
+      </tr></thead><tbody id="fx_resultTbody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+
+<script>
+
+// ══════════════════════════════════════════
+// TAB SWITCH
+// ══════════════════════════════════════════
+window.addEventListener('resize',function(){fx_redraw();});
+
+// ══════════════════════════════════════════
+// SHARED: DICOM parser
+// ══════════════════════════════════════════
+// ── 픽셀간격 기본값: 명시적 출처 표기, 절대 측정에 사용 금지 ──
+const PS_DEFAULT=0.148; // fallback only – validated 0.148 mm/px (CR 기준); 헤더 미인식 시 경고 발생
+const PS_ANISO_THRESH=0.005; // 행/열 간격 차이 허용 한계 (mm)
+
+function parseDicom(buffer){
+  const data=new Uint8Array(buffer),view=new DataView(buffer);
+  if(data.length<132)return null;
+  if(String.fromCharCode(data[128],data[129],data[130],data[131])!=='DICM')return null;
+  const EV=new Set(['AE','AS','AT','CS','DA','DS','DT','FL','FD','IS','LO','LT','OB','OD','OF','OW','PN','SH','SL','SQ','SS','ST','TM','UC','UI','UL','UN','UR','US','UT']);
+  function findTag(g,e){const b0=g&0xff,b1=(g>>8)&0xff,b2=e&0xff,b3=(e>>8)&0xff;for(let p=132;p<data.length-12;p++){if(data[p]===b0&&data[p+1]===b1&&data[p+2]===b2&&data[p+3]===b3)return p;}return -1;}
+  function readStr(g,e){const p=findTag(g,e);if(p<0)return null;const vr=String.fromCharCode(data[p+4],data[p+5]);let len,start;if(EV.has(vr)){if(['OB','OD','OF','OW','SQ','UC','UN','UR','UT'].includes(vr)){len=view.getUint32(p+8,true);start=p+12;}else{len=view.getUint16(p+6,true);start=p+8;}}else{len=view.getUint32(p+4,true);start=p+8;}if(len<=0||len>4096||start+len>data.length)return null;let s='';for(let i=0;i<len;i++)s+=String.fromCharCode(data[start+i]);return s.replace(/\0/g,'').trim();}
+  function readUSImpl(g,e){const p=findTag(g,e);if(p<0)return null;const vr=String.fromCharCode(data[p+4],data[p+5]);if(vr==='US')return view.getUint16(p+8,true);const len=view.getUint32(p+4,true);if(len===2)return view.getUint16(p+8,true);return null;}
+  const rows=readUSImpl(0x0028,0x0010)||512,cols=readUSImpl(0x0028,0x0011)||512;
+  const bitsAl=readUSImpl(0x0028,0x0100)||16,pixRep=readUSImpl(0x0028,0x0103)||0;
+
+  // ── 픽셀간격 파싱: 행/열 독립 추출, 비등방성 감지 ──
+  let psRow=PS_DEFAULT,psCol=PS_DEFAULT,psSource='기본값(헤더미인식)',psWarn=null,psIsDefault=true,psAniso=false;
+  const psStr=readStr(0x0028,0x0030)||readStr(0x0018,0x1164);
+  if(psStr){
+    const parts=psStr.split('\\');
+    const r=parseFloat(parts[0]),c=parseFloat(parts.length>1?parts[1]:parts[0]);
+    if(!isNaN(r)&&r>0&&!isNaN(c)&&c>0){
+      psRow=r; psCol=c; psIsDefault=false;
+      psSource='DICOM헤더';
+      if(Math.abs(r-c)>PS_ANISO_THRESH){
+        psAniso=true;
+        psWarn='비등방성(anisotropic) 픽셀간격 감지: 행='+r.toFixed(4)+' mm, 열='+c.toFixed(4)+' mm\n현재 행방향('+r.toFixed(4)+' mm/px)을 대표값으로 사용합니다.\n결과 해석 시 방향별 오차를 고려하세요.';
+      }
+    }
+  }
+  const psVal=psRow; // 대표값: 행방향
+  const pdp=findTag(0x7FE0,0x0010);if(pdp<0)return null;
+  let pixStart,pixLen;
+  const pvr=String.fromCharCode(data[pdp+4],data[pdp+5]);
+  if(pvr==='OW'||pvr==='OB'){pixLen=view.getUint32(pdp+8,true);pixStart=pdp+12;}
+  else{pixLen=view.getUint32(pdp+4,true);pixStart=pdp+8;}
+  if(pixStart+pixLen>data.length)pixLen=data.length-pixStart;
+  const raw=data.slice(pixStart,pixStart+pixLen);
+  const buf=raw.buffer.slice(raw.byteOffset,raw.byteOffset+raw.byteLength);
+  let pixels;
+  if(bitsAl<=8)pixels=new Uint8Array(buf);else if(pixRep===1)pixels=new Int16Array(buf);else pixels=new Uint16Array(buf);
+  if(pixels.length<rows*cols)return null;
+  const tmp=Array.from(pixels.slice(0,Math.min(pixels.length,rows*cols))).sort((a,b)=>a-b);
+  const p1v=tmp[Math.floor(tmp.length*0.01)],p99=tmp[Math.floor(tmp.length*0.99)],clip=p99-p1v||1;
+  const offC=document.createElement('canvas');offC.width=cols;offC.height=rows;
+  const octx=offC.getContext('2d'),idata=octx.createImageData(cols,rows);
+  for(let i=0;i<rows*cols;i++){const v=Math.min(255,Math.max(0,Math.round((pixels[i]-p1v)/clip*255)));idata.data[i*4]=v;idata.data[i*4+1]=v;idata.data[i*4+2]=v;idata.data[i*4+3]=255;}
+  octx.putImageData(idata,0,0);
+  return{dataUrl:offC.toDataURL(),ps:psVal,psRow,psCol,psSource,psIsDefault,psAniso,psWarn,rows,cols};
+}
+
+// ══════════════════════════════════════════
+// SHARED MATH
+// ══════════════════════════════════════════
+function circumcircle3(p1,p2,p3){
+  const ax=p1.x,ay=p1.y,bx=p2.x,by=p2.y,cx=p3.x,cy=p3.y;
+  const D=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
+  if(Math.abs(D)<1e-10)return null;
+  const s1=ax*ax+ay*ay,s2=bx*bx+by*by,s3=cx*cx+cy*cy;
+  const ux=(s1*(by-cy)+s2*(cy-ay)+s3*(ay-by))/D;
+  const uy=(s1*(cx-bx)+s2*(ax-cx)+s3*(bx-ax))/D;
+  return{cx:ux,cy:uy,r:Math.sqrt((ax-ux)**2+(ay-uy)**2)};
+}
+function ptDist(a,b){return Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);}
+function circleDist(a,b){return Math.sqrt((a.cx-b.cx)**2+(a.cy-b.cy)**2);}
+function twoCircles2pt(p1,p2,r){
+  const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2,dx=p2.x-p1.x,dy=p2.y-p1.y;
+  const hc=Math.sqrt(dx*dx+dy*dy)/2;if(r<hc-1e-9)return null;
+  const d=Math.sqrt(Math.max(0,r*r-hc*hc)),len=Math.sqrt(dx*dx+dy*dy)||1;
+  const px=-dy/len,py=dx/len;
+  return[{cx:mx+d*px,cy:my+d*py,r},{cx:mx-d*px,cy:my-d*py,r}];
+}
+
+// angle between two lines (each defined by two points), returns smaller angle in degrees
+function lineAngleDeg(a1,a2,b1,b2){
+  const dax=a2.x-a1.x,day=a2.y-a1.y;
+  const dbx=b2.x-b1.x,dby=b2.y-b1.y;
+  const dot=dax*dbx+day*dby;
+  const magA=Math.sqrt(dax*dax+day*day);
+  const magB=Math.sqrt(dbx*dbx+dby*dby);
+  if(magA<1e-10||magB<1e-10)return null;
+  let cosA=dot/(magA*magB);
+  cosA=Math.max(-1,Math.min(1,cosA));
+  let ang=Math.acos(cosA)*180/Math.PI;
+  if(ang>90)ang=180-ang; // always smaller angle
+  return ang;
+}
+
+// today
+(function(){const d=new Date();const s=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');document.getElementById('fx_metaDate').value=s;})();
+
+// ══════════════════════════════════════════
+// NM → FX: shared distDiam value
+// ══════════════════════════════════════════
+// PS 사이드바 패널 업데이트
+function fx_updatePsPanel(){
+  const badge=document.getElementById('fx_psStatusBadge');
+  const valEl=document.getElementById('fx_psValDisp');
+  const rcEl=document.getElementById('fx_psRowColDisp');
+  const srcEl=document.getElementById('fx_psSrcDisp');
+  const anisoEl=document.getElementById('fx_psAnisoDisp');
+  if(!fx.imgLoaded){badge.textContent='파일 없음';badge.style.cssText='padding:1px 7px;border-radius:7px;font-size:9px;font-weight:700;background:#1e2a3a;color:#64748b';valEl.textContent='-';rcEl.textContent='-';srcEl.textContent='-';anisoEl.textContent='-';return;}
+  valEl.textContent=fx.PS.toFixed(4)+' mm/px';
+  rcEl.textContent='행 '+fx.psRow.toFixed(4)+' / 열 '+fx.psCol.toFixed(4);
+  srcEl.textContent=fx.psSource;
+  if(fx.psIsDefault){
+    badge.textContent='⚠ 기본값';badge.style.cssText='padding:1px 7px;border-radius:7px;font-size:9px;font-weight:700;background:#3d1818;color:#ef4444';
+    anisoEl.textContent='-';anisoEl.style.color='#64748b';
+  } else if(fx.psAniso){
+    badge.textContent='⚠ 비등방';badge.style.cssText='padding:1px 7px;border-radius:7px;font-size:9px;font-weight:700;background:#3d2a00;color:#f59e0b';
+    anisoEl.textContent='비등방성 (방향별 오차 주의)';anisoEl.style.color='#f59e0b';
+  } else {
+    badge.textContent='✓ 정상';badge.style.cssText='padding:1px 7px;border-radius:7px;font-size:9px;font-weight:700;background:#14532d;color:#86efac';
+    anisoEl.textContent='등방성';anisoEl.style.color='#86efac';
+  }
+}
+
+// ══════════════════════════════════════════
+// TAB A — 골절 측정
+// ══════════════════════════════════════════
+const FX_A=1.1848, FX_B=0.2443;                 // r2(mm)=A·r1(mm)+B  (갱신본, 변경 가능)
+const FX_CC=['#38bdf8','#fb923c','#4ade80','#f472b6'];   // c1,c2,c3,c4
+const FX_PC=[
+  ['#7dd3fc','#38bdf8','#0284c7'],
+  ['#fdba74','#fb923c','#ea580c','#c2410c'],
+  ['#86efac','#4ade80','#16a34a'],
+  ['#f9a8d4','#f472b6','#db2777']
+];
+const FX_OFF=[0,3,7,10];               // p-번호 offset
+const FX_NEED=[3,4,3,3];               // 그룹별 필요 점수
+const FX_NAMES=['MP head','DP','FF','MP base'];
+const FX_CNAME=['c1','c2','c3','c4'];
+const FX_KEY='dicom_fx_v6';
+
+let fx={PS:PS_DEFAULT,psRow:PS_DEFAULT,psCol:PS_DEFAULT,psSource:'기본값(헤더미인식)',psIsDefault:true,psAniso:false,
+  imgLoaded:false,currentFile:'',scale:1,offsetX:0,offsetY:0,isPanning:false,panStart:{x:0,y:0},panOff:{x:0,y:0},
+  pts:[[],[],[],[]],circles:[null,null,null,null],cands:[null,null,null,null],R:{}};
+
+const fx_canvas=document.getElementById('fx_canvas');
+const fx_ctx=fx_canvas.getContext('2d');
+const fx_wrap=document.getElementById('fx_canvasWrap');
+const fx_dz=document.getElementById('fx_dropzone');
+const fx_hint=document.getElementById('fx_hint');
+const fx_zctrls=document.getElementById('fx_zctrls');
+const fx_zoomPctEl=document.getElementById('fx_zoomPct');
+const fx_img=new Image();
+fx_img.onload=function(){fx_redraw();};
+
+function fx_toI(sx,sy){return{x:(sx-fx.offsetX)/fx.scale,y:(sy-fx.offsetY)/fx.scale};}
+function fx_toS(ix,iy){return{x:ix*fx.scale+fx.offsetX,y:iy*fx.scale+fx.offsetY};}
+function fx_fit(){const vw=fx_wrap.clientWidth,vh=fx_wrap.clientHeight;fx.scale=Math.min(vw/fx_img.width,vh/fx_img.height)*0.92;fx.offsetX=(vw-fx_img.width*fx.scale)/2;fx.offsetY=(vh-fx_img.height*fx.scale)/2;}
+function fx_P(c){return{x:c.cx,y:c.cy};}
+function fx_arcPx(c,p1,p2){const a1=Math.atan2(p1.y-c.cy,p1.x-c.cx),a2=Math.atan2(p2.y-c.cy,p2.x-c.cx);let dt=Math.abs(a2-a1);if(dt>Math.PI)dt=2*Math.PI-dt;return c.r*dt;}
+function fx_r2px(){if(!fx.circles[0])return null;const r1mm=fx.circles[0].r*fx.PS;return (FX_A*r1mm+FX_B)/fx.PS;}
+
+// 2점 + 공식반지름 원: 중심이 c1에 가까운 쪽 선택
+function fx_radCircle(gi){
+  fx.cands[gi]=null;fx.circles[gi]=null;
+  const pts=fx.pts[gi];if(!fx.circles[0]||pts.length<2)return;
+  const rpx=fx_r2px();if(rpx===null)return;
+  const res=twoCircles2pt(pts[0],pts[1],rpx);
+  if(!res){fx.cands[gi]='ERR';return;}            // r2가 현(chord) 절반보다 작음
+  const ref=fx.circles[0];
+  fx.circles[gi]=(circleDist(res[0],ref)<=circleDist(res[1],ref))?res[0]:res[1];
+  fx.cands[gi]=res;
+}
+
+function fx_rebuild(){
+  fx.circles[0]=fx.pts[0].length>=3?circumcircle3(fx.pts[0][0],fx.pts[0][1],fx.pts[0][2]):null; // c1
+  fx_radCircle(1);   // c2 (DP base) ← p4,p5
+  fx_radCircle(2);   // c3 (FF)      ← p8,p9
+  fx.circles[3]=fx.pts[3].length>=3?circumcircle3(fx.pts[3][0],fx.pts[3][1],fx.pts[3][2]):null; // c4
+  fx_compute();
+}
+
+function fx_compute(){
+  const R={},PS=fx.PS,p=fx.pts;
+  const c1=fx.circles[0],c2=fx.circles[1],c3=fx.circles[2],c4=fx.circles[3];
+  if(c1)R.r1=c1.r*PS;
+  if(c2)R.r2=c2.r*PS;
+  if(c4)R.r3=c4.r*PS;
+  if(c1&&c4){R.L1=circleDist(c1,c4)*PS;if(R.r1!=null&&R.r3!=null)R.mpLen=R.L1+R.r1-R.r3;}
+  if(c2&&p[1].length>=4){R.L2=ptDist(p[1][3],fx_P(c2))*PS;if(R.r2!=null)R.dpLen=R.L2-R.r2;}
+  if(c1&&c4&&c2&&p[1].length>=4)R.mallet=lineAngleDeg(fx_P(c1),fx_P(c4),p[1][3],fx_P(c2));
+  if(c1&&c2)R.c1c2=circleDist(c1,c2)*PS;
+  if(c1&&c3)R.c1c3=circleDist(c1,c3)*PS;
+  if(c2&&c3)R.c2c3=circleDist(c2,c3)*PS;
+  if(c2&&p[1].length>=2)R.a1=fx_arcPx(c2,p[1][0],p[1][1])*PS;
+  if(c3&&p[2].length>=2)R.a2=fx_arcPx(c3,p[2][0],p[2][1])*PS;
+  if(R.a1!=null&&R.a2!=null){R.arcSum=R.a1+R.a2;R.arcPct=R.arcSum>0?R.a2/R.arcSum*100:null;}
+  if(p[1].length>=2)R.d1=ptDist(p[1][0],p[1][1])*PS;
+  if(p[2].length>=2)R.d2=ptDist(p[2][0],p[2][1])*PS;
+  if(R.d1!=null&&R.d2!=null){R.lineSum=R.d1+R.d2;R.linePct=R.lineSum>0?R.d2/R.lineSum*100:null;}
+  if(p[1].length>=2&&p[2].length>=1)R.gap=ptDist(p[1][1],p[2][0])*PS;     // p5↔p8
+  if(p[1].length>=3&&p[2].length>=3)R.disp=ptDist(p[1][2],p[2][2])*PS;    // p6↔p10
+  if(p[2].length>=3)R.dorsalFF=ptDist(p[2][1],p[2][2])*PS;               // p9↔p10
+  if(R.dorsalFF!=null&&R.L2!=null&&R.L2>0)R.dorsalRatio=R.dorsalFF/R.L2*100;
+  if(c2&&p[1].length>=4)R.fxAngle=lineAngleDeg(p[1][3],fx_P(c2),p[1][1],p[1][2]); // L2 vs p5p6
+  fx.R=R;
+}
+
+function fx_activeGroup(){if(!fx.imgLoaded)return -99;for(let i=0;i<4;i++){if(fx.pts[i].length<FX_NEED[i])return i;}return -1;}
+
+function fx_updateZoomPct(){if(fx_zoomPctEl)fx_zoomPctEl.textContent=Math.round(fx.scale*100)+'%';}
+
+function fx_redraw(){
+  fx_updateZoomPct();
+  fx_canvas.width=fx_wrap.clientWidth;fx_canvas.height=fx_wrap.clientHeight;
+  if(!fx.imgLoaded)return;
+  fx_ctx.drawImage(fx_img,fx.offsetX,fx.offsetY,fx_img.width*fx.scale,fx_img.height*fx.scale);
+  const PS=fx.PS;
+
+  // circles + centers
+  fx.circles.forEach(function(c,i){
+    if(!c)return;
+    const sc=fx_toS(c.cx,c.cy),sr=c.r*fx.scale;
+    fx_ctx.beginPath();fx_ctx.arc(sc.x,sc.y,sr,0,Math.PI*2);fx_ctx.strokeStyle=FX_CC[i];fx_ctx.lineWidth=1.6;fx_ctx.setLineDash([]);fx_ctx.stroke();
+    fx_ctx.strokeStyle=FX_CC[i];fx_ctx.lineWidth=1.3;fx_ctx.beginPath();fx_ctx.moveTo(sc.x-9,sc.y);fx_ctx.lineTo(sc.x+9,sc.y);fx_ctx.moveTo(sc.x,sc.y-9);fx_ctx.lineTo(sc.x,sc.y+9);fx_ctx.stroke();
+    fx_ctx.font='bold 10px sans-serif';fx_ctx.fillStyle=FX_CC[i];fx_ctx.fillText(FX_CNAME[i],sc.x+8,sc.y-8);
+  });
+
+  // 강조 호: a1 (c2, p4-p5), a2 (c3, p8-p9)
+  function shortArc(c,p1,p2,col,w){
+    const sc=fx_toS(c.cx,c.cy),sr=c.r*fx.scale;
+    let a1=Math.atan2(p1.y-c.cy,p1.x-c.cx),a2=Math.atan2(p2.y-c.cy,p2.x-c.cx),d=a2-a1;
+    while(d<=-Math.PI)d+=2*Math.PI;while(d>Math.PI)d-=2*Math.PI;
+    fx_ctx.beginPath();fx_ctx.arc(sc.x,sc.y,sr,a1,a1+d,d<0);fx_ctx.strokeStyle=col;fx_ctx.lineWidth=w;fx_ctx.setLineDash([]);fx_ctx.stroke();
+  }
+  if(fx.circles[1]&&fx.pts[1].length>=2)shortArc(fx.circles[1],fx.pts[1][0],fx.pts[1][1],'#ffd9a8',4);
+  if(fx.circles[2]&&fx.pts[2].length>=2)shortArc(fx.circles[2],fx.pts[2][0],fx.pts[2][1],'#bbf7d0',4);
+
+  function seg(a,b,col,dash){const sa=fx_toS(a.x,a.y),sb=fx_toS(b.x,b.y);fx_ctx.save();fx_ctx.strokeStyle=col;fx_ctx.lineWidth=1.3;fx_ctx.setLineDash(dash||[]);fx_ctx.beginPath();fx_ctx.moveTo(sa.x,sa.y);fx_ctx.lineTo(sb.x,sb.y);fx_ctx.stroke();fx_ctx.restore();}
+
+  // 중심간 거리선
+  function distLine(ca,cb,col,label){seg(fx_P(ca),fx_P(cb),col,[5,4]);const m=fx_toS((ca.cx+cb.cx)/2,(ca.cy+cb.cy)/2),txt=label+' '+(circleDist(ca,cb)*PS).toFixed(2)+' mm';fx_ctx.font='bold 9px sans-serif';const tw=fx_ctx.measureText(txt).width;fx_ctx.fillStyle='rgba(5,8,16,0.82)';fx_ctx.fillRect(m.x-tw/2-3,m.y-12,tw+6,15);fx_ctx.fillStyle=col;fx_ctx.textAlign='center';fx_ctx.fillText(txt,m.x,m.y);fx_ctx.textAlign='left';}
+  if(fx.circles[0]&&fx.circles[1])distLine(fx.circles[0],fx.circles[1],'#e056fd','MP~DP');
+  if(fx.circles[0]&&fx.circles[2])distLine(fx.circles[0],fx.circles[2],'#f0a8ff','MP~FF');
+  if(fx.circles[1]&&fx.circles[2])distLine(fx.circles[1],fx.circles[2],'#c87aff','DP~FF');
+
+  // 축/골절선
+  if(fx.circles[0]&&fx.circles[3])seg(fx_P(fx.circles[0]),fx_P(fx.circles[3]),'#fbbf24',[7,4]);  // L1 (MP 장축)
+  if(fx.circles[1]&&fx.pts[1].length>=4)seg(fx.pts[1][3],fx_P(fx.circles[1]),'#fb7185',[7,4]);    // L2 (DP 장축)
+  if(fx.pts[1].length>=3)seg(fx.pts[1][1],fx.pts[1][2],'#f472b6',[4,3]);                          // 골절선 p5-p6
+
+  // gap / displacement
+  if(fx.pts[1].length>=2&&fx.pts[2].length>=1)seg(fx.pts[1][1],fx.pts[2][0],'#38bdf8',[]);        // gap p5-p8
+  if(fx.pts[1].length>=3&&fx.pts[2].length>=3)seg(fx.pts[1][2],fx.pts[2][2],'#7dd3fc',[3,3]);     // disp p6-p10
+
+  // points
+  fx.pts.forEach(function(pts,g){pts.forEach(function(pt,j){const s=fx_toS(pt.x,pt.y);fx_ctx.beginPath();fx_ctx.arc(s.x,s.y,3.2,0,Math.PI*2);fx_ctx.fillStyle=FX_PC[g][j];fx_ctx.fill();fx_ctx.strokeStyle='rgba(255,255,255,0.6)';fx_ctx.lineWidth=0.8;fx_ctx.stroke();fx_ctx.font='bold 9px sans-serif';fx_ctx.fillStyle=FX_PC[g][j];fx_ctx.fillText('p'+(FX_OFF[g]+j+1),s.x+5,s.y-3);});});
+
+  // 각도 라벨
+  function annot(at,txt,col){const s=fx_toS(at.x,at.y);fx_ctx.font='bold 11px sans-serif';const tw=fx_ctx.measureText(txt).width;fx_ctx.fillStyle='rgba(5,8,16,0.85)';fx_ctx.fillRect(s.x-tw/2-5,s.y-14,tw+10,18);fx_ctx.fillStyle=col;fx_ctx.textAlign='center';fx_ctx.fillText(txt,s.x,s.y-1);fx_ctx.textAlign='left';}
+  if(fx.R.mallet!=null&&fx.circles[1])annot({x:fx.circles[1].cx,y:fx.circles[1].cy-fx.circles[1].r*0.5},'mallet '+fx.R.mallet.toFixed(1)+'°','#f472b6');
+  if(fx.R.fxAngle!=null&&fx.pts[1].length>=2)annot(fx.pts[1][1],'fx '+fx.R.fxAngle.toFixed(1)+'°','#fb7185');
+}
+
+function fx_cinfo(gi){
+  if(gi===1&&fx.cands[1]==='ERR')return '<div class="empty" style="color:#ef4444">⚠ r2가 p4·p5 간격의 절반보다 작아 원 생성 불가</div>';
+  if(gi===2&&fx.cands[2]==='ERR')return '<div class="empty" style="color:#ef4444">⚠ r2가 p8·p9 간격의 절반보다 작아 원 생성 불가</div>';
+  const c=fx.circles[gi];
+  if(!c)return '<div class="empty">'+['3점 후 c1·r1','p4·p5 후 c2·r2','p8·p9 후 c3','3점 후 c4·r3'][gi]+'</div>';
+  const R=fx.R;
+  const rmm=gi===0?R.r1:gi===1?R.r2:gi===2?R.r2:R.r3;
+  let s='<div class="cinfo"><span style="color:#64748b">중심:</span> <span style="color:'+FX_CC[gi]+'">'+FX_CNAME[gi]+'</span>';
+  if(rmm!=null)s+=' &nbsp;<span style="color:#64748b">반지름:</span> <span style="color:'+FX_CC[gi]+';font-weight:700">'+rmm.toFixed(2)+' mm</span>';
+  s+='</div>';return s;
+}
+
+function fx_setVal(id,v,unit){const el=document.getElementById(id);if(!el)return;const dec=(unit==='°'||unit===' %')?1:2;el.textContent=(v==null)?'-':v.toFixed(dec)+(unit||' mm');}
+
+function fx_updateUI(){
+  fx_updatePsPanel();
+  const ag=fx_activeGroup();
+  const BA='background:#e94560;color:#fff',BD='background:#14532d;color:#86efac',BW='background:#1e2a3a;color:#64748b';
+  for(let i=0;i<4;i++){
+    const badge=document.getElementById('fx_badge'+i),card=document.getElementById('fx_card'+i);
+    const pts=fx.pts[i],done=pts.length>=FX_NEED[i],active=(i===ag);
+    badge.textContent=pts.length+'/'+FX_NEED[i];badge.style.cssText=done?BD:active?BA:BW;
+    card.classList.toggle('active',active);
+    const plist=document.getElementById('fx_plist'+i);
+    if(pts.length===0)plist.innerHTML='<div class="empty">'+(active?'클릭해 점 추가':(i===0?'파일 로드 후 클릭':FX_NAMES[i-1]+' 완성 후 입력'))+'</div>';
+    else plist.innerHTML=pts.map(function(pt,j){return'<div class="pitem"><span class="pdot" style="background:'+FX_PC[i][j]+'"></span>p'+(FX_OFF[i]+j+1)+': ('+pt.x.toFixed(0)+','+pt.y.toFixed(0)+')</div>';}).join('');
+    document.getElementById('fx_cinfo'+i).innerHTML=fx_cinfo(i);
+  }
+  const R=fx.R;
+  fx_setVal('fx_r1',R.r1);fx_setVal('fx_r2',R.r2);fx_setVal('fx_r3',R.r3);
+  fx_setVal('fx_mpLen',R.mpLen);fx_setVal('fx_dpLen',R.dpLen);fx_setVal('fx_malletAngle',R.mallet,'°');
+  fx_setVal('fx_c1c2',R.c1c2);fx_setVal('fx_c1c3',R.c1c3);fx_setVal('fx_c2c3',R.c2c3);
+  fx_setVal('fx_arc1',R.a1);fx_setVal('fx_arc2',R.a2);fx_setVal('fx_arcSum',R.arcSum);fx_setVal('fx_arcPct',R.arcPct,' %');
+  fx_setVal('fx_line1',R.d1);fx_setVal('fx_line2',R.d2);fx_setVal('fx_lineSum',R.lineSum);fx_setVal('fx_linePct',R.linePct,' %');
+  fx_setVal('fx_gap',R.gap);fx_setVal('fx_disp',R.disp);fx_setVal('fx_dorsalFF',R.dorsalFF);fx_setVal('fx_dorsalRatio',R.dorsalRatio,' %');fx_setVal('fx_fxAngle',R.fxAngle,'°');
+
+  if(!fx.imgLoaded){fx_hint.textContent='DICOM 파일을 드래그하거나 선택하세요';return;}
+  if(ag===-1){fx_hint.textContent='✅ 측정 완료 — 결과를 저장하세요';return;}
+  const nextP=FX_OFF[ag]+fx.pts[ag].length+1;
+  const tip=['p1·p2·p3 (MP head 관절면)','p4 volar→p5 dorsal→p6 distal→p7 tip','p8 volar→p9 dorsal→p10 tip','p11·p12·p13 (MP base 관절면)'][ag];
+  fx_hint.textContent=FX_NAMES[ag]+': p'+nextP+' 클릭  ['+tip+']';
+}
+
+function fx_reset(){fx.pts=[[],[],[],[]];fx.circles=[null,null,null,null];fx.cands=[null,null,null,null];fx.R={};document.getElementById('fx_swanNeck').checked=false;document.getElementById('fx_metaMemo').value='';fx_updateUI();fx_redraw();}
+
+function fx_loadFile(file){
+  fx.currentFile=file.name;document.getElementById('fx_metaFile').value=file.name;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const r=parseDicom(e.target.result);
+    if(!r){alert('DICOM 파싱 실패');return;}
+    fx.PS=r.ps;fx.psRow=r.psRow;fx.psCol=r.psCol;fx.psSource=r.psSource;fx.psIsDefault=r.psIsDefault;fx.psAniso=r.psAniso;
+    const badge=document.getElementById('psBadgeFx');
+    if(r.psIsDefault){badge.textContent='🔴 골절: ⚠ 기본값 '+r.ps.toFixed(4)+' mm/px';badge.style.borderColor='#ef4444';badge.style.color='#ef4444';}
+    else if(r.psAniso){badge.textContent='🔴 골절: ⚠ 비등방 행'+r.psRow.toFixed(4)+'/열'+r.psCol.toFixed(4)+' mm/px';badge.style.borderColor='#f59e0b';badge.style.color='#f59e0b';}
+    else{badge.textContent='🔴 골절: ✓ '+r.ps.toFixed(4)+' mm/px';badge.style.borderColor='#22c55e';badge.style.color='#22c55e';}
+    if(r.psIsDefault)alert('⚠️ 픽셀간격 헤더 미인식\n\n기본값 '+PS_DEFAULT+' mm/px 를 사용합니다.\n작은 관절에서는 실제 픽셀간격과 다를 경우\nmm 측정값에 큰 오차가 발생합니다.\nPACS/장비 사양서에서 실제 픽셀간격을 확인하세요.');
+    else if(r.psAniso)alert('⚠️ 비등방성(Anisotropic) 픽셀간격 감지\n\n'+r.psWarn);
+    fx.imgLoaded=false;
+    fx_img.onload=function(){fx.imgLoaded=true;fx_dz.classList.add('hidden');fx_hint.style.display='block';fx_zctrls.style.display='flex';fx_fit();fx_reset();};
+    fx_img.src=r.dataUrl;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+fx_canvas.addEventListener('click',function(e){
+  if(fx.isPanning||!fx.imgLoaded)return;
+  const rect=fx_canvas.getBoundingClientRect();
+  const ip=fx_toI(e.clientX-rect.left,e.clientY-rect.top);
+  if(ip.x<0||ip.x>fx_img.width||ip.y<0||ip.y>fx_img.height)return;
+  const ag=fx_activeGroup();if(ag<0)return;
+  if(fx.pts[ag].length>=FX_NEED[ag])return;
+  fx.pts[ag].push(ip);
+  fx_rebuild();fx_updateUI();fx_redraw();
+});
+
+fx_canvas.addEventListener('mousedown',function(e){if(e.altKey){fx.isPanning=true;fx.panStart={x:e.clientX,y:e.clientY};fx.panOff={x:fx.offsetX,y:fx.offsetY};fx_canvas.style.cursor='move';}});
+fx_canvas.addEventListener('mousemove',function(e){if(!fx.isPanning)return;fx.offsetX=fx.panOff.x+(e.clientX-fx.panStart.x);fx.offsetY=fx.panOff.y+(e.clientY-fx.panStart.y);fx_redraw();});
+fx_canvas.addEventListener('mouseup',function(){fx.isPanning=false;fx_canvas.style.cursor='crosshair';});
+fx_canvas.addEventListener('mouseleave',function(){fx.isPanning=false;fx_canvas.style.cursor='crosshair';});
+fx_canvas.addEventListener('wheel',function(e){e.preventDefault();const rect=fx_canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,f=e.deltaY<0?1.12:1/1.12,ns=Math.min(20,Math.max(0.1,fx.scale*f));fx.offsetX=mx-(mx-fx.offsetX)*(ns/fx.scale);fx.offsetY=my-(my-fx.offsetY)*(ns/fx.scale);fx.scale=ns;fx_redraw();},{passive:false});
+
+document.getElementById('fx_canvasWrap').addEventListener('dragover',function(e){e.preventDefault();document.getElementById('fx_dropOverlay').classList.add('show');});
+document.getElementById('fx_canvasWrap').addEventListener('dragleave',function(){document.getElementById('fx_dropOverlay').classList.remove('show');});
+document.getElementById('fx_canvasWrap').addEventListener('drop',function(e){e.preventDefault();document.getElementById('fx_dropOverlay').classList.remove('show');const f=e.dataTransfer.files[0];if(f)fx_loadFile(f);});
+document.getElementById('fx_fileInput').addEventListener('change',function(e){if(e.target.files[0])fx_loadFile(e.target.files[0]);this.value='';});
+document.getElementById('fx_zIn').addEventListener('click',function(){fx.scale=Math.min(20,fx.scale*1.3);fx_redraw();});
+document.getElementById('fx_zOut').addEventListener('click',function(){fx.scale=Math.max(0.1,fx.scale/1.3);fx_redraw();});
+document.getElementById('fx_zReset').addEventListener('click',function(){fx_fit();fx_redraw();});
+document.getElementById('fx_clearBtn').addEventListener('click',fx_reset);
+document.getElementById('fx_undoBtn').addEventListener('click',function(){for(let i=3;i>=0;i--){if(fx.pts[i].length>0){fx.pts[i].pop();break;}}fx_rebuild();fx_updateUI();fx_redraw();});
+
+function fx_loadR(){try{return JSON.parse(localStorage.getItem(FX_KEY)||'[]');}catch(e){return[];}}
+function fx_saveR(a){localStorage.setItem(FX_KEY,JSON.stringify(a));}
+
+document.getElementById('fx_saveBtn').addEventListener('click',function(){
+  for(let i=0;i<4;i++){if(fx.pts[i].length<FX_NEED[i]||!fx.circles[i]){alert('모든 계측점(p1–p13)을 완성한 후 저장하세요.');return;}}
+  const R=fx.R;
+  const f2=function(v){return v==null?'-':v.toFixed(2);},f1=function(v){return v==null?'-':v.toFixed(1);};
+  const rec={
+    date:document.getElementById('fx_metaDate').value||'-',
+    user:document.getElementById('fx_metaUser').value.trim()||'(미입력)',
+    file:fx.currentFile,
+    ps:fx.PS.toFixed(4),psRow:fx.psRow.toFixed(4),psCol:fx.psCol.toFixed(4),
+    psSource:fx.psSource,psIsDefault:fx.psIsDefault?'기본값(미인식)':'헤더인식',psAniso:fx.psAniso?'비등방성':'등방성',
+    r1:f2(R.r1),r2:f2(R.r2),r3:f2(R.r3),
+    mpLen:f2(R.mpLen),dpLen:f2(R.dpLen),mallet:f1(R.mallet),
+    c1c2:f2(R.c1c2),c1c3:f2(R.c1c3),c2c3:f2(R.c2c3),
+    a1:f2(R.a1),a2:f2(R.a2),arcSum:f2(R.arcSum),arcPct:f1(R.arcPct),
+    d1:f2(R.d1),d2:f2(R.d2),lineSum:f2(R.lineSum),linePct:f1(R.linePct),
+    fxAngle:f1(R.fxAngle),gap:f2(R.gap),disp:f2(R.disp),dorsalFF:f2(R.dorsalFF),dorsalRatio:f1(R.dorsalRatio),
+    savedAt:new Date().toISOString()
+  };
+  rec.swanNeck=document.getElementById('fx_swanNeck').checked?'있음':'없음';
+  rec.memo=document.getElementById('fx_metaMemo').value.trim()||'-';
+  const arr=fx_loadR();arr.push(rec);fx_saveR(arr);
+  const isBatch=batch.active,isLast=!batch.active||(batch.files.length-batch.idx<=1);
+  setTimeout(function(){
+    if(isBatch){if(!isLast){batchAdvance();}else{batch.active=false;batchUpdateUI();alert('✅ 폴더 측정 완료!\n총 '+batch.files.length+'건 / 저장 '+arr.length+'건');}}
+    else{alert('✅ 저장 완료! (누계: '+arr.length+'건)');}
+  },0);
+});
+
+function fx_renderTable(){
+  const arr=fx_loadR(),tbody=document.getElementById('fx_resultTbody');
+  if(arr.length===0){tbody.innerHTML='<tr><td colspan="35" class="no-data">저장된 결과 없음</td></tr>';return;}
+  tbody.innerHTML=arr.map(function(r,i){
+    const psBad=r.psIsDefault==='기본값(미인식)'?'color:#ef4444;font-weight:700':'';
+    return'<tr><td>'+(i+1)+'</td><td>'+r.date+'</td><td>'+r.user+'</td>'
+      +'<td style="max-width:90px;overflow:hidden;text-overflow:ellipsis" title="'+r.file+'">'+r.file+'</td>'
+      +'<td style="'+psBad+'">'+r.ps+'</td><td>'+r.psRow+'</td><td>'+r.psCol+'</td>'
+      +'<td style="'+psBad+'">'+r.psIsDefault+'</td><td>'+r.psSource+'</td><td>'+r.psAniso+'</td>'
+      +'<td>'+r.r1+'</td><td>'+r.r2+'</td><td>'+r.r3+'</td>'
+      +'<td>'+r.mpLen+'</td><td>'+r.dpLen+'</td><td>'+r.mallet+'</td>'
+      +'<td>'+r.c1c2+'</td><td>'+r.c1c3+'</td><td>'+r.c2c3+'</td>'
+      +'<td>'+r.a1+'</td><td>'+r.a2+'</td><td>'+r.arcSum+'</td><td>'+r.arcPct+'</td>'
+      +'<td>'+r.d1+'</td><td>'+r.d2+'</td><td>'+r.lineSum+'</td><td>'+r.linePct+'</td>'
+      +'<td>'+r.fxAngle+'</td><td>'+r.gap+'</td><td>'+r.disp+'</td>'
+      +'<td>'+(r.dorsalFF||'-')+'</td><td>'+(r.dorsalRatio||'-')+'</td>'
+      +'<td>'+(r.swanNeck||'-')+'</td>'
+      +'<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis" title="'+(r.memo||'')+'">'+(r.memo||'-')+'</td>'
+      +'<td><button class="del-btn" data-idx="'+i+'">삭제</button></td></tr>';
+  }).join('');
+}
+document.getElementById('fx_resultTbody').addEventListener('click',function(e){const btn=e.target.closest('.del-btn');if(!btn)return;const idx=parseInt(btn.getAttribute('data-idx'),10);if(isNaN(idx))return;if(!confirm('삭제?'))return;const arr=fx_loadR();arr.splice(idx,1);fx_saveR(arr);fx_renderTable();});
+document.getElementById('showResultsFxBtn').addEventListener('click',function(){fx_renderTable();document.getElementById('fx_modalBg').classList.add('show');});
+document.getElementById('fx_closeModalBtn').addEventListener('click',function(){document.getElementById('fx_modalBg').classList.remove('show');});
+document.getElementById('fx_modalBg').addEventListener('click',function(e){if(e.target===this)this.classList.remove('show');});
+document.getElementById('fx_clearAllBtn').addEventListener('click',function(){if(!confirm('전체 삭제?'))return;fx_saveR([]);fx_renderTable();});
+document.getElementById('fx_csvBtn').addEventListener('click',function(){
+  const arr=fx_loadR();if(arr.length===0){alert('데이터 없음');return;}
+  const hdr='번호\t측정일\t측정자\t파일명\t픽셀간격(mm/px)\t행간격\t열간격\tPS출처\tPS상태\t등방성\tr1 MP head(mm)\tr2 DP·FF(mm)\tr3 MP base(mm)\tMP길이(mm)\tDP길이(mm)\tmallet angle(°)\tDP-MP c1c2(mm)\tMP-FF c1c3(mm)\tDP-FF c2c3(mm)\tarc a1(mm)\tarc a2(mm)\tarc합(mm)\tFF arc%\tline d1(mm)\tline d2(mm)\tline합(mm)\tFF line%\tfracture angle(°)\tfracture gap(mm)\tdisplacement(mm)\tdorsal cortex FF(mm)\tdorsal cortex ratio(%)\tSwan Neck\t메모';
+  const cl=function(v){return(v||'').replace(/\t/g,' ');};
+  const rows=arr.map(function(r,i){return[i+1,r.date,r.user,cl(r.file),r.ps,r.psRow,r.psCol,r.psSource,r.psIsDefault,r.psAniso,r.r1,r.r2,r.r3,r.mpLen,r.dpLen,r.mallet,r.c1c2,r.c1c3,r.c2c3,r.a1,r.a2,r.arcSum,r.arcPct,r.d1,r.d2,r.lineSum,r.linePct,r.fxAngle,r.gap,r.disp,r.dorsalFF||'-',r.dorsalRatio||'-',r.swanNeck||'-',cl(r.memo)].join('\t');});
+  const tsv=hdr+'\n'+rows.join('\n');
+  const buf=new ArrayBuffer(2+tsv.length*2);const bv=new DataView(buf);bv.setUint16(0,0xFEFF,true);for(let i=0;i<tsv.length;i++)bv.setUint16(2+i*2,tsv.charCodeAt(i),true);
+  const blob=new Blob([buf],{type:'text/csv;charset=utf-16le'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fracture_measurements_v6.csv';a.click();URL.revokeObjectURL(url);
+});
+
+
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 폴더 일괄 import (batch)
+// ArrayBuffer 즉시 읽기 → File 참조 소멸 방지
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const batch={files:[],idx:0,active:false};
+function batchUpdateUI(){
+  const bar=document.getElementById('batchBar');
+  if(!batch.active){bar.style.display='none';return;}
+  bar.style.display='flex';
+  const name=batch.files[batch.idx]?batch.files[batch.idx].name:'';
+  document.getElementById('batchCurrent').textContent=name;
+  document.getElementById('batchCurrent').title=name;
+  document.getElementById('batchIdx').textContent=(batch.idx+1)+'/'+batch.files.length;
+  document.getElementById('batchProgress').style.width=Math.round((batch.idx+1)/batch.files.length*100)+'%';
+}
+function fx_loadBuffer(fileName,buffer){
+  const r=parseDicom(buffer);
+  if(!r){
+    if(batch.active){if(confirm('DICOM 파싱 실패: '+fileName+'\n\n건너뜀?')){batchAdvance();}else{batchStop();}}
+    else{alert('DICOM 파싱 실패\n.dcm 파일인지 확인하세요.');}
+    return;
+  }
+  fx.PS=r.ps;fx.psRow=r.psRow;fx.psCol=r.psCol;fx.psSource=r.psSource;fx.psIsDefault=r.psIsDefault;fx.psAniso=r.psAniso;
+  fx.currentFile=fileName;document.getElementById('fx_metaFile').value=fileName;
+  const badge=document.getElementById('psBadgeFx');
+  if(r.psIsDefault){badge.textContent='⚠ 기본값 '+r.ps.toFixed(4)+' mm/px';badge.style.color='#ef4444';}
+  else if(r.psAniso){badge.textContent='⚠ 비등방 '+r.ps.toFixed(4)+' mm/px';badge.style.color='#f59e0b';}
+  else{badge.textContent='✓ '+r.ps.toFixed(4)+' mm/px';badge.style.color='#22c55e';}
+  if(!batch.active&&r.psIsDefault)alert('⚠️ 픽셀간격 헤더 미인식\n기본값 '+PS_DEFAULT+' mm/px 사용');
+  if(!batch.active&&r.psAniso)alert('⚠️ 비등방성 픽셀간격\n'+r.psWarn);
+  fx.imgLoaded=false;
+  fx_img.onload=function(){fx.imgLoaded=true;fx_dz.classList.add('hidden');fx_hint.style.display='block';fx_zctrls.style.display='flex';fx_fit();fx_reset();};
+  fx_img.src=r.dataUrl;
+}
+function batchLoadCurrent(){if(!batch.active||batch.idx>=batch.files.length)return;fx_loadBuffer(batch.files[batch.idx].name,batch.files[batch.idx].buffer);batchUpdateUI();}
+function batchAdvance(){if(!batch.active)return;batch.idx++;if(batch.idx>=batch.files.length){batch.active=false;batchUpdateUI();alert('✅ 폴더 일괄처리 완료: '+batch.files.length+'건');return;}batchLoadCurrent();}
+function batchStop(){batch.active=false;batch.files=[];batch.idx=0;batchUpdateUI();}
+document.getElementById('folderInput').addEventListener('change',function(e){
+  const fileList=Array.from(e.target.files).filter(function(f){return f.name.toLowerCase().endsWith('.dcm');}).sort(function(a,b){return a.name.localeCompare(b.name,undefined,{numeric:true});});
+  this.value='';
+  if(!fileList.length){alert('.dcm 파일이 없습니다.');return;}
+  batch.files=[];batch.idx=0;batch.active=false;
+  let loaded=0;const total=fileList.length;
+  const bar=document.getElementById('batchBar');bar.style.display='flex';
+  document.getElementById('batchCurrent').textContent='읽는 중...';
+  document.getElementById('batchIdx').textContent='0/'+total;
+  document.getElementById('batchProgress').style.width='0%';
+  fileList.forEach(function(file){
+    const rd=new FileReader();
+    rd.onload=function(ev){
+      batch.files.push({name:file.name,buffer:ev.target.result});loaded++;
+      document.getElementById('batchIdx').textContent=loaded+'/'+total;
+      document.getElementById('batchProgress').style.width=Math.round(loaded/total*100)+'%';
+      if(loaded===total){batch.files.sort(function(a,b){return a.name.localeCompare(b.name,undefined,{numeric:true});});batch.idx=0;batch.active=true;batchUpdateUI();batchLoadCurrent();}
+    };
+    rd.readAsArrayBuffer(file);
+  });
+});
+document.getElementById('batchSkipBtn').addEventListener('click',function(){if(!batch.active)return;if(!confirm('건너뜀: '+batch.files[batch.idx].name+'?'))return;batchAdvance();});
+document.getElementById('batchStopBtn').addEventListener('click',function(){if(!confirm('폴더 일괄처리 중단?'))return;batchStop();});
+
+
+// ── 초기화 ──
+
+fx_updateUI();
+</script>
+</body>
+</html>
